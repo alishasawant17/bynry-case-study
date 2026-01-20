@@ -1,27 +1,29 @@
-1. SKU uniqueness not checked:
-   Issue- sku = data['sku']----> doesn't check if sku already exists
-   Impact- Two products can get get same SKU which may result in inventory mismatch, billing confusion
-   Fix- check DB if SKU exists
+## Part 1: Identify Issues (API Debugging)
 
-2. Product incorrectly tied to a warehouse:
-   Issue- warehouse_id = data['warehouse_id']----> inside product model
-   Impact- You can't store same product in multiple warehouses.
-   Fix- Remove warehouse_id from product model
+1. **SKU uniqueness not checked**
+   - **Issue:** `sku = data['sku']` is used directly without checking if the SKU already exists.
+   - **Impact:** Two products can get the same SKU, causing inventory mismatch, wrong product mapping, and billing confusion.
+   - **Fix:** Check the database for existing SKU before inserting a new product. Return an error if SKU already exists.
 
-3. Two commits
-   Issue- product model is commited first then inventory
-   Impact- If inventory insert fails after product commit, then product gets created without inventory.
-   Fix- Commit once or rollback if anything fails.
+2. **Product incorrectly tied to a warehouse**
+   - **Issue:** `warehouse_id = data['warehouse_id']` is stored inside the Product model.
+   - **Impact:** The same product cannot be stored in multiple warehouses (violates business requirement).
+   - **Fix:** Remove `warehouse_id` from the Product table/model. Store warehouse mapping only in the Inventory table.
 
-4. No validation for missing/optional field
-   Issue- They directly access: data['name'], data['initial_quantity']
-   Impact- If field missing → KeyError → API crashes.
-   Fix- Use .get() and validate required fields properly.
+3. **Two commits (not atomic)**
+   - **Issue:** Product is committed first, then inventory is committed separately.
+   - **Impact:** If inventory insert fails after product commit, the product gets created without inventory (inconsistent data).
+   - **Fix:** Commit once as a single transaction, or rollback if anything fails.
 
-5. No error handling
-   Issue- No try/except, no rollback.
-   Impact- Any DB error = crash + half saved data.
-   Fix- Wrap with try/except and rollback on failure.
+4. **No validation for missing/optional fields**
+   - **Issue:** Code directly accesses `data['name']`, `data['initial_quantity']`, etc.
+   - **Impact:** If a field is missing, it raises `KeyError` and the API crashes.
+   - **Fix:** Use `data.get()` and validate required fields properly. Use defaults for optional fields.
+
+5. **No error handling**
+   - **Issue:** No `try/except` block and no rollback on failure.
+   - **Impact:** Any database error can crash the API and leave half-saved data.
+   - **Fix:** Wrap logic in `try/except` and rollback the DB session if an error occurs.
 
 
 ✅ Corrected Flow (Improved Logic)
